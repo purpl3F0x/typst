@@ -1,0 +1,6 @@
+b1f6a31d60a9501430bc1e056e578e9b issue-5930-symbol-label
+948fda064f46c51b938d5371a5288334 presentation-selectors
+a3966811d75076b85f4f57f3e63ebfbe symbol
+bae387b2daf3d4ed1840a50d6e1ec8d4 symbol-constructor
+729565aedf8f8da473ad255ea4a70a50 symbol-modifier-deprecated
+74052415aba19a82bdbc31a725ac8419 symbol-sect-deprecated

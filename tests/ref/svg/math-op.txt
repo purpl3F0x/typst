@@ -1,0 +1,8 @@
+a8fcfcaaf887134c1fc56d20d8d2cada math-non-math-content
+5cef559ebbff64dcc4b162d1c184954b math-op-call
+4487287180b7e09655fa9e0937f266ac math-op-custom
+e5ca5bd8f481c760d35dfb042574a249 math-op-font
+c904285ec652db923e3ccbc866c871bb math-op-predefined
+411e2debebc286048e026e67817901b7 math-op-scripts-vs-limits
+41f45f32a83719be5b9be0f8f03ba9c7 math-op-set-font
+cd9ac987138f5d157cd7c0f5e76fef25 math-op-styled

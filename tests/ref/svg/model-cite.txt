@@ -1,0 +1,14 @@
+aa65fc8f4362b45ed2982ee10affc931 cite-chicago-fullnotes-warning
+356016b67aad6736bd210fda8a997b36 cite-footnote
+8e2aff6003da206074d4a854c90e5da0 cite-form
+06dadbaf038c5ccf351d099070f8cb4d cite-group
+32b3c8e9e3cbe48cf94600269a3fdd97 cite-grouping-and-ordering
+8704b2961ec660db1107cf281d29dff4 cite-supplements-and-ibid
+e43c4c2b7fcdeb372a779730052fb1fb issue-1597-cite-footnote
+fe6007217e746f97f89f80ef9dab9533 issue-2531-cite-show-set
+3f95cbc6b817b588800300f74b2a7758 issue-3481-cite-location
+9ec8653a5b5a8c3b2b662e8d8f53d727 issue-3699-cite-twice-et-al
+b1dfc274c9d590af39ac77d278214edc issue-5503-cite-group-interrupted-by-par-align
+fa0f361bf1def77fe0b5a174e33e4da8 issue-5503-cite-in-align
+fdb74964677d683532512736e4697afe issue-5775-cite-order-rtl
+a2b320ee8d37b46242380b48e679ac91 issue-785-cite-locate

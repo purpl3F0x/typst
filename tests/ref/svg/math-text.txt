@@ -1,0 +1,14 @@
+6147351d2148b3c95c2c472c8bb53ad9 math-font-covers
+c291fadeacf5a040e1a8a749803204ea math-font-fallback
+2dd3893cce307eba191538c32571ea87 math-font-fallback-class
+2e92da4b637b3a225c4d2370b6ea2a65 math-font-features
+0acc6d5fd7b9ebe6db3d28162b224e24 math-font-features-switch
+9ccc41f62eb092405834ddc5d21a5ea9 math-font-warning
+9ccdc8a5038b0d6f6cf25627bb1fae0e math-optical-size-frac-script-script
+f1f010e89ffd3cb79bf8ff22cd10292c math-optical-size-nested-scripts
+7c2807f0b3ccf7a2b5a29c4cb29d3734 math-optical-size-prime-large-operator
+ce84e90fc56d3b8dfc551a4776f50c22 math-optical-size-primes
+df7d2f6d87946354497b1fe1e52a2f34 math-par
+ceac1ecf398a048841185e71c250ae64 math-text-color
+557c9569d1a6460f8d31eb1f91458f8c math-text-grapheme-cluster-fallback
+512014aa699a662a9f9a7b6d1962254d math-text-single-grapheme-cluster

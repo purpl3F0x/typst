@@ -1,0 +1,8 @@
+25616812de815adb54baa1a8ead8cc7e issue-3774-math-call-empty-2d-args
+dfb36d7674d4a9621b71370380d53046 math-call-2d-semicolon-priority
+79bbff7f8bef5e7b5e8a85aa4a4d10d3 math-call-empty-args-non-func
+c4bf54b7cf0fdcfe7bb7c05b01228206 math-call-named-args
+de984e6969131beb61c16c59d61dbef8 math-call-non-func
+38224e7a84d25a58ae9ed30c63bf5bc8 math-call-pass-to-box
+db54e99fe9932fea641351740d589001 math-call-spread-shorthand-clash
+76011c2e29acf38dc15ab2f6c66d7174 math-call-symbol

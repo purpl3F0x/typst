@@ -1,0 +1,8 @@
+bbcbfa5c6556907b259bea11ef4f4bff color-cmyk-ops
+c787329b970de80e9fadbb2493be5dd6 color-luma
+171a0854c266b535b4f8a867ed86e85b color-outside-srgb-gamut
+a9550cc4d7962d7610f71cbd857521f0 color-rotate-hue
+88c251609d644de43845e3a710281c4c color-saturation
+7748a2e3d3f01d04de00079f63860f4d color-spaces
+05d483214937bd306982ac38afa4d7aa issue-4361-transparency-leak
+e82f8018d01e259c2ef7b1d39d08a59c issue-color-mix-luma
