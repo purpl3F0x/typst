@@ -19,7 +19,7 @@ mod version_;
 pub use self::bitset::{BitSet, SmallBitSet};
 pub use self::deferred::Deferred;
 pub use self::duration::format_duration;
-pub use self::hash::{HashLock, LazyHash, ManuallyHash, hash128};
+pub use self::hash::{HashLock, LazyHash, ManuallyHash, hash128, stable_hash128};
 pub use self::listset::ListSet;
 pub use self::pico::{PicoStr, ResolvedPicoStr};
 pub use self::protected::Protected;

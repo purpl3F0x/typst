@@ -3319,6 +3319,7 @@ dependencies = [
  "hayro",
  "hayro-svg",
  "image",
+ "indexmap 2.12.1",
  "rustc-hash",
  "ttf-parser",
  "typst-assets",
