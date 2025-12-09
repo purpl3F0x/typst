@@ -1,5 +1,5 @@
 2dc0c5185c2b9d66539c7daebd17c777 issue-1825-rect-overflow
-ae72c78a4192f357cf63462a04c8fc66 issue-3264-rect-negative-dimensions
+5c94b65ef2e41954e0983572878d9b8f issue-3264-rect-negative-dimensions
 9a3ae1146fe1251aab6a02380d625505 rect
 ad2281a2f035ecd772cf455c072e7c91 rect-adjacent-dashed-stroke-cap-change
 e83bcd56c866e91cf1af1b8258e9d4e9 rect-adjacent-dashed-stroke-thickness-change
