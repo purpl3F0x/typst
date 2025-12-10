@@ -1,5 +1,4 @@
 use std::any::TypeId;
-use std::ffi::OsStr;
 use std::fmt::{self, Debug, Formatter};
 use std::num::NonZeroUsize;
 use std::path::Path;
@@ -307,16 +306,10 @@ impl Debug for Bibliography {
 fn decode_library(loaded: &Loaded) -> SourceResult<Library> {
     let data = loaded.data.as_str().within(loaded)?;
 
-    if let LoadSource::Path(file_id) = loaded.source.v {
+    if let LoadSource::Path(path) = loaded.source.v {
         // If we got a path, use the extension to determine whether it is
         // YAML or BibLaTeX.
-        let ext = file_id
-            .vpath()
-            .as_rooted_path()
-            .extension()
-            .and_then(OsStr::to_str)
-            .unwrap_or_default();
-
+        let ext = path.extension().unwrap_or_default();
         match ext.to_lowercase().as_str() {
             "yml" | "yaml" => hayagriva::io::from_yaml_str(data)
                 .map_err(format_yaml_error)
