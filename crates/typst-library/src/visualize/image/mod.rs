@@ -53,8 +53,8 @@ use crate::visualize::image::pdf::PdfDocument;
 /// ```
 #[elem(scope, Locatable, Tagged, Synthesize, LocalName, Figurable)]
 pub struct ImageElem {
-    /// A [path]($syntax/#paths) to an image file or raw bytes making up an
-    /// image in one of the supported [formats]($image.format).
+    /// A path to an image file or raw bytes making up an image in one of the
+    /// supported [formats]($image.format).
     ///
     /// Bytes can be used to specify raw pixel data in a row-major,
     /// left-to-right, top-to-bottom format.

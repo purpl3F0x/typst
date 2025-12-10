@@ -80,6 +80,7 @@ pub use {
 
 use comemo::{Track, TrackedMut};
 use ecow::EcoString;
+use typst_syntax::path::VirtualPath;
 use typst_syntax::{Spanned, SyntaxMode};
 
 use crate::diag::{SourceResult, StrResult, bail};
@@ -110,6 +111,7 @@ pub(super) fn define(global: &mut Scope, inputs: Dict, features: &Features) {
     global.define_type::<Symbol>();
     global.define_type::<Duration>();
     global.define_type::<Version>();
+    global.define_type::<VirtualPath>();
     global.define_func::<repr::repr>();
     global.define_func::<panic>();
     global.define_func::<assert>();

@@ -12,7 +12,7 @@ use crate::World;
 use crate::diag::{
     FileError, LoadError, LoadResult, ReportPos, StrResult, bail, format_xml_like_error,
 };
-use crate::foundations::{Bytes, PathStr};
+use crate::foundations::{Bytes, PathOrStr};
 use crate::layout::Axes;
 use crate::visualize::VectorFormat;
 use crate::visualize::image::raster::{ExchangeFormat, RasterFormat};
@@ -384,7 +384,7 @@ impl<'a> ImageResolver<'a> {
         }
 
         // Resolve the path to the linked image.
-        let href_path = PathStr(href.into())
+        let href_path = PathOrStr::Str(href.into())
             .resolve_if_some(self.svg_path)
             .map_err(|hinted| hinted.message().clone())?
             .intern();

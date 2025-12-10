@@ -31,7 +31,7 @@ pub use self::yaml_::*;
 use crate::World;
 use crate::diag::{At, SourceResult};
 use crate::foundations::OneOrMultiple;
-use crate::foundations::PathStr;
+use crate::foundations::PathOrStr;
 use crate::foundations::{Bytes, Scope, Str, cast};
 
 /// Hook up all `data-loading` definitions.
@@ -51,7 +51,7 @@ pub(super) fn define(global: &mut Scope) {
 #[derive(Debug, Clone, PartialEq, Hash)]
 pub enum DataSource {
     /// A path to a file.
-    Path(PathStr),
+    Path(PathOrStr),
     /// Raw bytes.
     Bytes(Bytes),
 }
@@ -62,7 +62,7 @@ cast! {
         Self::Path(v) => v.into_value(),
         Self::Bytes(v) => v.into_value(),
     },
-    v: PathStr => Self::Path(v),
+    v: PathOrStr => Self::Path(v),
     v: Bytes => Self::Bytes(v),
 }
 
