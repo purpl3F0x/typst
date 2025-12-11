@@ -157,6 +157,19 @@
   #lorem(10)
 ]))
 
+--- tiling-text-fill paged ---
+// Test a tiling on some text. You shouldn't be able to see the text, if you can
+// then that means that the transform matrices are not being applied to the text
+// correctly.
+#let t = tiling(
+  size: (30pt, 30pt),
+  relative: "parent",
+  square(size: 30pt, fill: gradient.conic(..color.map.rainbow))
+);
+#set text(fill: t)
+
+#lorem(20)
+
 --- tiling-pattern-compatibility paged ---
 #set page(width: auto, height: auto, margin: 0pt)
 
