@@ -331,6 +331,7 @@ tr {
     display: inline-block;
     vertical-align: baseline;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
     margin: var(--line-margin) 0;
 }
 
