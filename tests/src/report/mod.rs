@@ -1,85 +1,13 @@
+use std::fmt::Display;
 use std::path::Path;
 use std::time::Duration;
 
+use base64::Engine;
 use ecow::{EcoString, eco_format};
 use similar::{ChangeTag, InlineChange, TextDiff};
 use smallvec::SmallVec;
-use typst::diag::{FileError, FileResult, Severity, SourceDiagnostic, Warned};
-use typst::foundations::{Bytes, Cast, Datetime, Dict, IntoValue, Value, dict};
-use typst::text::{Font, FontBook};
-use typst::{Feature, Features, Library, LibraryExt, World};
-use typst_html::HtmlDocument;
-use typst_syntax::{FileId, Source, Span, Spanned, VirtualPath};
-use typst_utils::LazyHash;
 
-static REPORT_STYLE: &str = include_str!("report.css");
-static REPORT_SCRIPT: &str = include_str!("report.js");
-static REPORT_TEMPLATE: &str = include_str!("report.typ");
-
-const ANSII_RED: &str = "\x1b[91m";
-const ANSII_YELLOW: &str = "\x1b[93m";
-const ANSII_BLUE: &str = "\x1b[34m";
-const ANSII_CLEAR: &str = "\x1b[0m";
-
-struct ReportWorld {
-    source: Source,
-    library: LazyHash<Library>,
-    book: LazyHash<FontBook>,
-    fonts: Vec<Font>,
-}
-
-impl ReportWorld {
-    pub fn new(source: Source, inputs: Dict) -> Self {
-        let library = Library::builder()
-            .with_features(Features::from_iter([Feature::Html]))
-            .with_inputs(inputs)
-            .build();
-
-        // For HTML fonts aren't required.
-        let book = FontBook::new();
-        let fonts = Vec::new();
-        Self {
-            source,
-            library: LazyHash::new(library),
-            book: LazyHash::new(book),
-            fonts,
-        }
-    }
-}
-
-impl World for ReportWorld {
-    fn library(&self) -> &LazyHash<Library> {
-        &self.library
-    }
-
-    fn book(&self) -> &LazyHash<FontBook> {
-        &self.book
-    }
-
-    fn main(&self) -> FileId {
-        self.source.id()
-    }
-
-    fn source(&self, id: FileId) -> FileResult<Source> {
-        if id == self.source.id() {
-            Ok(self.source.clone())
-        } else {
-            Err(FileError::Other(Some("Opening other files is not supported".into())))
-        }
-    }
-
-    fn file(&self, _: FileId) -> FileResult<Bytes> {
-        Err(FileError::Other(Some("Opening other files is not supported".into())))
-    }
-
-    fn font(&self, index: usize) -> Option<Font> {
-        self.fonts.get(index).cloned()
-    }
-
-    fn today(&self, _: Option<i64>) -> Option<Datetime> {
-        None
-    }
-}
+pub mod html;
 
 pub struct TestReport {
     pub name: EcoString,
@@ -92,107 +20,30 @@ impl TestReport {
     }
 }
 
-impl IntoValue for TestReport {
-    fn into_value(self) -> Value {
-        Value::Dict(dict! {
-            "name" => self.name.into_value(),
-            "diffs" => self.diffs.into_value(),
-        })
-    }
-}
-
 pub enum DiffKind {
     Text(TextFileDiff),
     Image(ImageFileDiff),
 }
 
-impl IntoValue for DiffKind {
-    fn into_value(self) -> Value {
+impl DiffKind {
+    fn left_path(&self) -> &str {
         match self {
-            DiffKind::Text(diff) => diff.into_value(),
-            DiffKind::Image(diff) => diff.into_value(),
+            DiffKind::Text(diff) => &diff.left.path,
+            DiffKind::Image(diff) => &diff.left.path,
         }
     }
-}
 
-pub fn generate(mut reports: Vec<TestReport>) -> Option<String> {
-    reports.sort_by(|a, b| a.name.cmp(&b.name));
-
-    let inputs = dict! {
-        "reports" => reports.into_value(),
-        "style" => REPORT_STYLE.into_value(),
-        "script" => REPORT_SCRIPT.into_value(),
-    };
-    let vpath = VirtualPath::new("report.typ");
-    let source = Source::new(FileId::new(None, vpath), REPORT_TEMPLATE.into());
-    let world = ReportWorld::new(source, inputs);
-    let Warned { output, warnings } = typst::compile::<HtmlDocument>(&world);
-    print_diagnostics(&world, &warnings);
-
-    let doc = output.inspect_err(|errors| print_diagnostics(&world, errors)).ok()?;
-    typst_html::html(&doc)
-        .inspect_err(|errors| print_diagnostics(&world, errors))
-        .ok()
-}
-
-fn print_diagnostics(world: &ReportWorld, diags: &[SourceDiagnostic]) {
-    for diag in diags {
-        let SourceDiagnostic { severity, span, message, trace: _, hints } = diag;
-        if diag.message == "html export is under active development and incomplete" {
-            continue;
+    fn right_path(&self) -> &str {
+        match self {
+            DiffKind::Text(diff) => &diff.right.path,
+            DiffKind::Image(diff) => &diff.right.path,
         }
-
-        let severity = typst_utils::display(|f| match severity {
-            Severity::Error => write!(f, "{ANSII_RED}error{ANSII_CLEAR}"),
-            Severity::Warning => write!(f, "{ANSII_YELLOW}warning{ANSII_CLEAR}"),
-        });
-        eprintln!("{severity}: {message}");
-
-        print_code_lines(world, *span);
-        for Spanned { v: message, span } in hints {
-            eprintln!("{ANSII_BLUE}hint{ANSII_CLEAR}: {message}");
-            if !span.is_detached() {
-                print_code_lines(world, *span);
-            }
-        }
-        eprintln!();
-    }
-}
-
-fn print_code_lines(world: &ReportWorld, span: Span) {
-    let lines = world.source.lines();
-    if let Some(range) = span.range().or_else(|| world.source.range(span)) {
-        let (line_idx, col_idx) = lines.byte_to_line_column(range.start).unwrap();
-        let end_line_idx = lines.byte_to_line(range.start).unwrap();
-
-        let line_nr = line_idx + 1;
-        let col_nr = col_idx + 1;
-        eprintln!(
-            "     {ANSII_BLUE}┌─{ANSII_CLEAR} tests/src/report.typ:{line_nr}:{col_nr}"
-        );
-        for line_idx in line_idx..=end_line_idx {
-            let line_range = lines.line_to_range(line_idx).unwrap();
-            let line = &lines.text()[line_range].trim_end();
-            let line_nr = line_idx + 1;
-            eprintln!("{ANSII_BLUE}{line_nr:>4} │{ANSII_CLEAR} {line}");
-        }
-        eprintln!("     {ANSII_BLUE}│{ANSII_CLEAR}");
     }
 }
 
 pub struct TextFileDiff {
     left: Lines,
     right: Lines,
-}
-
-impl IntoValue for TextFileDiff {
-    fn into_value(self) -> Value {
-        Value::Dict(dict! {
-            "kind" => "text",
-            "left" => self.left.into_value(),
-            "right" => self.right.into_value(),
-        })
-    }
 }
 
 pub struct Lines {
@@ -207,52 +58,38 @@ impl Lines {
     }
 }
 
-impl IntoValue for Lines {
-    fn into_value(self) -> typst::foundations::Value {
-        Value::Dict(dict! {
-            "path" => self.path.into_value(),
-            "lines" => self.lines.into_value(),
-        })
-    }
-}
-
-#[derive(Copy, Clone, Cast)]
-pub enum Kind {
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum LineKind {
     Empty,
     Del,
     Add,
     Unchanged,
     Gap,
+    End,
+}
+
+impl Display for LineKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            LineKind::Empty => "empty",
+            LineKind::Del => "del",
+            LineKind::Add => "add",
+            LineKind::Unchanged => "unchanged",
+            LineKind::Gap => "gap",
+            LineKind::End => "end",
+        })
+    }
 }
 
 pub struct Line {
-    kind: Kind,
+    kind: LineKind,
     nr: u32,
     spans: SmallVec<[TextSpan; 3]>,
-}
-
-impl IntoValue for Line {
-    fn into_value(self) -> typst::foundations::Value {
-        Value::Dict(dict! {
-            "kind" => self.kind,
-            "nr" => self.nr,
-            "spans" => self.spans,
-        })
-    }
 }
 
 pub struct TextSpan {
     emph: bool,
     text: EcoString,
-}
-
-impl IntoValue for TextSpan {
-    fn into_value(self) -> typst::foundations::Value {
-        Value::Dict(dict! {
-            "emph" => self.emph,
-            "text" => self.text,
-        })
-    }
 }
 
 /// Create a rich HTML text diff.
@@ -314,26 +151,30 @@ pub fn text_diff((path_a, a): (&Path, &str), (path_b, b): (&Path, &str)) -> Text
 }
 
 fn line_empty() -> Line {
-    Line { kind: Kind::Empty, nr: 0, spans: SmallVec::new() }
+    Line {
+        kind: LineKind::Empty,
+        nr: 0,
+        spans: SmallVec::new(),
+    }
 }
 
 fn line_del(line_nr: usize, change: &InlineChange<str>) -> Line {
-    diff_line(Kind::Del, line_nr, change)
+    diff_line(LineKind::Del, line_nr, change)
 }
 
 fn line_add(line_nr: usize, change: &InlineChange<str>) -> Line {
-    diff_line(Kind::Add, line_nr, change)
+    diff_line(LineKind::Add, line_nr, change)
 }
 
 fn line_unchanged(line_nr: usize, change: &InlineChange<str>) -> Line {
-    diff_line(Kind::Unchanged, line_nr, change)
+    diff_line(LineKind::Unchanged, line_nr, change)
 }
 
 fn line_gap() -> Line {
-    Line { kind: Kind::Gap, nr: 0, spans: SmallVec::new() }
+    Line { kind: LineKind::Gap, nr: 0, spans: SmallVec::new() }
 }
 
-fn diff_line(kind: Kind, nr: usize, change: &InlineChange<str>) -> Line {
+fn diff_line(kind: LineKind, nr: usize, change: &InlineChange<str>) -> Line {
     let spans = line_spans(change);
     Line { kind, nr: nr as u32, spans }
 }
@@ -353,43 +194,31 @@ pub struct ImageFileDiff {
     right: Image,
 }
 
-impl IntoValue for ImageFileDiff {
-    fn into_value(self) -> Value {
-        Value::Dict(dict! {
-            "kind" => "image",
-            "left" => self.left.into_value(),
-            "right" => self.right.into_value(),
-        })
-    }
-}
-
 pub struct Image {
     path: EcoString,
-    data: Bytes,
+    data_url: String,
 }
 
 impl Image {
-    pub fn new(path: &Path, data: Bytes) -> Self {
+    pub fn new(path: &Path, data_url: String) -> Self {
         let path = eco_format!("{}", path.display());
-        Self { path, data }
-    }
-}
-
-impl IntoValue for Image {
-    fn into_value(self) -> Value {
-        Value::Dict(dict! {
-            "path" => self.path.into_value(),
-            "data" => self.data.into_value(),
-        })
+        Self { path, data_url }
     }
 }
 
 pub fn image_diff(
     (path_a, a): (&Path, &[u8]),
     (path_b, b): (&Path, &[u8]),
+    format: &str,
 ) -> ImageFileDiff {
     ImageFileDiff {
-        left: Image::new(path_a, Bytes::new(a.to_vec())),
-        right: Image::new(path_b, Bytes::new(b.to_vec())),
+        left: Image::new(path_a, data_url(format, a)),
+        right: Image::new(path_b, data_url(format, b)),
     }
+}
+
+fn data_url(format: &str, data: &[u8]) -> String {
+    let mut data_url = format!("data:image/{format};base64,");
+    base64::engine::general_purpose::STANDARD.encode_string(data, &mut data_url);
+    data_url
 }

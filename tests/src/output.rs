@@ -1,8 +1,10 @@
 use std::fmt::Display;
 use std::path::Path;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use ecow::EcoString;
+use hayro::{FontData, FontQuery, InterpreterSettings, StandardFont};
 use indexmap::IndexMap;
 use rustc_hash::FxBuildHasher;
 use tiny_skia as sk;
@@ -200,7 +202,7 @@ impl OutputType for Render {
     }
 
     fn make_diff(a: (&Path, &[u8]), b: (&Path, &[u8])) -> [DiffKind; 1] {
-        [DiffKind::Image(report::image_diff(a, b))]
+        [DiffKind::Image(report::image_diff(a, b, "png"))]
     }
 }
 
@@ -251,9 +253,51 @@ impl OutputType for Pdf {
         HashedRef(typst_utils::stable_hash128(live))
     }
 
-    fn make_diff(a: (&Path, &[u8]), b: (&Path, &[u8])) -> [DiffKind; 1] {
-        [DiffKind::Image(report::image_diff(a, b))]
+    fn make_diff(
+        (path_a, a): (&Path, &[u8]),
+        (path_b, b): (&Path, &[u8]),
+    ) -> [DiffKind; 1] {
+        let a = pdf_to_svg(a);
+        let b = pdf_to_svg(b);
+        [DiffKind::Image(report::image_diff(
+            (path_a, a.as_bytes()),
+            (path_b, b.as_bytes()),
+            "svg+xml",
+        ))]
     }
+}
+
+fn pdf_to_svg(bytes: &[u8]) -> String {
+    let pdf = hayro_syntax::Pdf::new(Arc::new(bytes.to_vec())).unwrap();
+    let select_standard_font = move |font: StandardFont| -> Option<(FontData, u32)> {
+        let bytes = match font {
+            StandardFont::Helvetica => typst_assets::pdf::SANS,
+            StandardFont::HelveticaBold => typst_assets::pdf::SANS_BOLD,
+            StandardFont::HelveticaOblique => typst_assets::pdf::SANS_ITALIC,
+            StandardFont::HelveticaBoldOblique => typst_assets::pdf::SANS_BOLD_ITALIC,
+            StandardFont::Courier => typst_assets::pdf::FIXED,
+            StandardFont::CourierBold => typst_assets::pdf::FIXED_BOLD,
+            StandardFont::CourierOblique => typst_assets::pdf::FIXED_ITALIC,
+            StandardFont::CourierBoldOblique => typst_assets::pdf::FIXED_BOLD_ITALIC,
+            StandardFont::TimesRoman => typst_assets::pdf::SERIF,
+            StandardFont::TimesBold => typst_assets::pdf::SERIF_BOLD,
+            StandardFont::TimesItalic => typst_assets::pdf::SERIF_ITALIC,
+            StandardFont::TimesBoldItalic => typst_assets::pdf::SERIF_BOLD_ITALIC,
+            StandardFont::ZapfDingBats => typst_assets::pdf::DING_BATS,
+            StandardFont::Symbol => typst_assets::pdf::SYMBOL,
+        };
+        Some((Arc::new(bytes), 0))
+    };
+
+    let interpreter_settings = InterpreterSettings {
+        font_resolver: Arc::new(move |query| match query {
+            FontQuery::Standard(s) => select_standard_font(*s),
+            FontQuery::Fallback(f) => select_standard_font(f.pick_standard_font()),
+        }),
+        warning_sink: Arc::new(|_| {}),
+    };
+
+    hayro_svg::convert(&pdf.pages()[0], &interpreter_settings)
 }
 
 impl HashOutputType for Pdf {
@@ -345,7 +389,7 @@ impl OutputType for Svg {
         (path_b, b): (&Path, &[u8]),
     ) -> [DiffKind; 2] {
         [
-            DiffKind::Image(report::image_diff((path_a, a), (path_b, b))),
+            DiffKind::Image(report::image_diff((path_a, a), (path_b, b), "svg+xml")),
             DiffKind::Text(report::text_diff(
                 (path_a, std::str::from_utf8(a).unwrap()),
                 (path_b, std::str::from_utf8(b).unwrap()),

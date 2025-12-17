@@ -3372,11 +3372,14 @@ dependencies = [
 name = "typst-tests"
 version = "0.14.2"
 dependencies = [
+ "base64",
  "bitflags 2.9.1",
  "clap",
  "codespan-reporting",
  "comemo",
  "ecow",
+ "hayro",
+ "hayro-svg",
  "hayro-syntax",
  "indexmap 2.12.1",
  "oxipng",
@@ -3401,6 +3404,7 @@ dependencies = [
  "typst-utils",
  "unscanny",
  "walkdir",
+ "xmlwriter",
 ]
 
 [[package]]

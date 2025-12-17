@@ -108,9 +108,8 @@ impl<'a> Logger<'a> {
     pub fn finish(self) -> bool {
         let Self { selected, passed, failed, skipped, reports, .. } = self;
 
-        if let Some(report) = report::generate(reports) {
-            std::fs::write(Path::new(STORE_PATH).join("report.html"), report).unwrap();
-        }
+        let html = report::html::generate(reports);
+        std::fs::write(Path::new(STORE_PATH).join("report.html"), html).unwrap();
 
         eprintln!("{passed} passed, {failed} failed, {skipped} skipped");
         assert_eq!(selected, passed + failed, "not all tests were executed successfully");
