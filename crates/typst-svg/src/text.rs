@@ -77,7 +77,7 @@ impl SVGRenderer<'_> {
             let key = (&text.font, glyph_id);
             let (id, frame) = self.glyphs.insert_with_val(key, || {
                 let frame = glyph_frame(&text.font, glyph_id.0)?;
-                Some(RenderedGlyph::Image(frame.into()))
+                Some(RenderedGlyph::Image(frame))
             });
 
             if frame.is_some() {
@@ -191,7 +191,7 @@ impl SVGRenderer<'_> {
                     let state = State::new(frame.size()).pre_translate(frame.item.pos());
                     match &frame.item {
                         GlyphFrameItem::Tofu(_, shape) => {
-                            self.render_shape(&state, &shape);
+                            self.render_shape(&state, shape);
                         }
                         GlyphFrameItem::Image(_, image, size) => {
                             self.render_image(&state, image, size);
