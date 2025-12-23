@@ -2,11 +2,15 @@ use std::f64::consts::TAU;
 
 use ecow::{EcoString, eco_format};
 use typst_library::foundations::Repr;
-use typst_library::layout::{Angle, Axes, Frame, Quadrant, Ratio, Transform};
+use typst_library::layout::{
+    Abs, Angle, Axes, Frame, Point, Quadrant, Ratio, Size, Transform,
+};
 use typst_library::visualize::{Color, FillRule, Gradient, Paint, RatioOrAngle, Tiling};
 use xmlwriter::XmlWriter;
 
-use crate::{DedupId, SVGRenderer, State, SvgPathBuilder, SvgTransform};
+use crate::path::SvgPathBuilder;
+use crate::write::{SvgElem, SvgIdRef, SvgTransform, SvgUrl, SvgWrite};
+use crate::{DedupId, SVGRenderer, State};
 
 /// The number of segments in a conic gradient.
 /// This is a heuristic value that seems to work well.
@@ -17,35 +21,38 @@ impl SVGRenderer<'_> {
     /// Render a frame to a string.
     pub(super) fn render_tiling_frame(&mut self, state: &State, frame: &Frame) -> String {
         let mut xml = XmlWriter::new(xmlwriter::Options::default());
-        std::mem::swap(&mut self.xml, &mut xml);
-        self.render_frame(state, frame);
-        std::mem::swap(&mut self.xml, &mut xml);
+        let mut svg = SvgElem::new(&mut xml, "g");
+        self.render_frame(&mut svg, state, frame);
+        drop(svg);
         xml.end_document()
     }
 
     /// Write a fill attribute.
     pub(super) fn write_fill(
         &mut self,
+        svg: &mut SvgElem,
         fill: &Paint,
         fill_rule: FillRule,
         aspect_ratio: Ratio,
         ts: Transform,
     ) {
         match fill {
-            Paint::Solid(color) => self.xml.write_attribute("fill", &color.encode()),
+            Paint::Solid(color) => {
+                svg.attr("fill", color.encode());
+            }
             Paint::Gradient(gradient) => {
                 let id = self.push_gradient(gradient, aspect_ratio, ts);
-                self.xml.write_attribute_fmt("fill", format_args!("url(#{id})"));
+                svg.attr("fill", SvgUrl(id));
             }
             Paint::Tiling(tiling) => {
                 let id = self.push_tiling(tiling, ts);
-                self.xml.write_attribute_fmt("fill", format_args!("url(#{id})"));
+                svg.attr("fill", SvgUrl(id));
             }
         }
         match fill_rule {
-            FillRule::NonZero => self.xml.write_attribute("fill-rule", "nonzero"),
-            FillRule::EvenOdd => self.xml.write_attribute("fill-rule", "evenodd"),
-        }
+            FillRule::NonZero => svg.attr("fill-rule", "nonzero"),
+            FillRule::EvenOdd => svg.attr("fill-rule", "evenodd"),
+        };
     }
 
     /// Pushes a gradient to the list of gradients to write SVG file.
@@ -94,21 +101,21 @@ impl SVGRenderer<'_> {
     }
 
     /// Write the raw gradients (without transform) to the SVG file.
-    pub(super) fn write_gradients(&mut self) {
+    pub(super) fn write_gradients(&mut self, svg: &mut SvgElem) {
         if self.gradients.is_empty() {
             return;
         }
 
-        self.xml.start_element("defs");
-        self.xml.write_attribute("id", "gradients");
+        let mut defs = svg.elem("defs");
+        defs.attr("id", "gradients");
 
         for (id, (gradient, ratio)) in self.gradients.iter() {
-            match &gradient {
+            let mut svg = match &gradient {
                 Gradient::Linear(linear) => {
-                    self.xml.start_element("linearGradient");
-                    self.xml.write_attribute("id", &id);
-                    self.xml.write_attribute("spreadMethod", "pad");
-                    self.xml.write_attribute("gradientUnits", "userSpaceOnUse");
+                    let mut gradient = defs.elem("linearGradient");
+                    gradient.attr("id", id);
+                    gradient.attr("spreadMethod", "pad");
+                    gradient.attr("gradientUnits", "userSpaceOnUse");
 
                     let angle = Gradient::correct_aspect_ratio(linear.angle, *ratio);
                     let (sin, cos) = (angle.sin(), angle.cos());
@@ -122,36 +129,40 @@ impl SVGRenderer<'_> {
                         Quadrant::Third => (1.0, 1.0),
                         Quadrant::Fourth => (0.0, 1.0),
                     };
-                    let x2 = x1 + (cos * factor) as f32;
-                    let y2 = y1 + (sin * factor) as f32;
+                    let x2 = x1 + cos * factor;
+                    let y2 = y1 + sin * factor;
 
-                    self.xml.write_attribute("x1", &x1);
-                    self.xml.write_attribute("y1", &y1);
-                    self.xml.write_attribute("x2", &x2);
-                    self.xml.write_attribute("y2", &y2);
+                    gradient.attr("x1", x1);
+                    gradient.attr("y1", y1);
+                    gradient.attr("x2", x2);
+                    gradient.attr("y2", y2);
+
+                    gradient
                 }
                 Gradient::Radial(radial) => {
-                    self.xml.start_element("radialGradient");
-                    self.xml.write_attribute("id", &id);
-                    self.xml.write_attribute("spreadMethod", "pad");
-                    self.xml.write_attribute("gradientUnits", "userSpaceOnUse");
-                    self.xml.write_attribute("cx", &radial.center.x.get());
-                    self.xml.write_attribute("cy", &radial.center.y.get());
-                    self.xml.write_attribute("r", &radial.radius.get());
-                    self.xml.write_attribute("fx", &radial.focal_center.x.get());
-                    self.xml.write_attribute("fy", &radial.focal_center.y.get());
-                    self.xml.write_attribute("fr", &radial.focal_radius.get());
+                    let mut gradient = defs.elem("radialGradient");
+                    gradient.attr("id", id);
+                    gradient.attr("spreadMethod", "pad");
+                    gradient.attr("gradientUnits", "userSpaceOnUse");
+                    gradient.attr("cx", radial.center.x.get());
+                    gradient.attr("cy", radial.center.y.get());
+                    gradient.attr("r", radial.radius.get());
+                    gradient.attr("fx", radial.focal_center.x.get());
+                    gradient.attr("fy", radial.focal_center.y.get());
+                    gradient.attr("fr", radial.focal_radius.get());
+                    gradient
                 }
                 Gradient::Conic(conic) => {
-                    self.xml.start_element("pattern");
-                    self.xml.write_attribute("id", &id);
-                    self.xml.write_attribute("viewBox", "0 0 1 1");
-                    self.xml.write_attribute("preserveAspectRatio", "none");
-                    self.xml.write_attribute("patternUnits", "userSpaceOnUse");
-                    self.xml.write_attribute("width", "2");
-                    self.xml.write_attribute("height", "2");
-                    self.xml.write_attribute("x", "-0.5");
-                    self.xml.write_attribute("y", "-0.5");
+                    let mut pattern = defs.elem("pattern");
+                    pattern.attr("id", id);
+                    pattern.attr("viewBox", "0 0 1 1");
+                    pattern.attr("preserveAspectRatio", "none");
+                    pattern.attr("patternUnits", "userSpaceOnUse");
+                    pattern.attr("width", "2");
+                    pattern.attr("height", "2");
+                    // TODO: Refactor this.
+                    pattern.attr("x", "-0.5");
+                    pattern.attr("y", "-0.5");
 
                     // The rotation angle, negated to match rotation in PNG.
                     let angle = -Gradient::correct_aspect_ratio(conic.angle, *ratio);
@@ -165,23 +176,20 @@ impl SVGRenderer<'_> {
 
                         // Create the path for the segment.
                         let mut builder = SvgPathBuilder::empty();
-                        builder.move_to(
-                            correct_tiling_pos(center.x.get()),
-                            correct_tiling_pos(center.y.get()),
-                        );
+                        builder.move_to(correct_tiling_pos(center.x, center.y));
 
-                        builder.line_to(
-                            correct_tiling_pos(-2.0 * theta1.cos() + center.x.get()),
-                            correct_tiling_pos(2.0 * theta1.sin() + center.y.get()),
-                        );
+                        builder.line_to(correct_tiling_pos(
+                            Ratio::new(-2.0 * theta1.cos()) + center.x,
+                            Ratio::new(2.0 * theta1.sin()) + center.y,
+                        ));
                         builder.arc(
-                            (2.0, 2.0),
-                            0.0,
+                            Size::splat(Abs::pt(1.0)),
+                            Angle::zero(),
                             0,
                             1,
-                            (
-                                correct_tiling_pos(-2.0 * theta2.cos() + center.x.get()),
-                                correct_tiling_pos(2.0 * theta2.sin() + center.y.get()),
+                            correct_tiling_pos(
+                                Ratio::new(-2.0 * theta2.cos()) + center.x,
+                                Ratio::new(2.0 * theta2.sin()) + center.y,
                             ),
                         );
                         builder.close();
@@ -202,30 +210,27 @@ impl SVGRenderer<'_> {
                             .insert_with(subgradient.clone(), || subgradient);
 
                         // Add the path to the pattern.
-                        self.xml.start_element("path");
-                        self.xml.write_attribute("d", &builder.path);
-                        self.xml.write_attribute_fmt("fill", format_args!("url(#{id})"));
-                        self.xml
-                            .write_attribute_fmt("stroke", format_args!("url(#{id})"));
-                        self.xml.write_attribute("stroke-width", "0");
-                        self.xml.write_attribute("shape-rendering", "optimizeSpeed");
-                        self.xml.end_element();
+                        pattern
+                            .elem("path")
+                            .attr("d", builder.path)
+                            .attr("fill", SvgUrl(id))
+                            // .attr("stroke", SvgUrl(id))
+                            .attr("stroke-width", "0")
+                            .attr("shape-rendering", "optimizeSpeed");
                     }
 
                     // We skip the default stop generation code.
-                    self.xml.end_element();
                     continue;
                 }
-            }
+            };
 
             for window in gradient.stops_ref().windows(2) {
                 let (start_c, start_t) = window[0];
                 let (end_c, end_t) = window[1];
 
-                self.xml.start_element("stop");
-                self.xml.write_attribute("offset", &start_t.repr());
-                self.xml.write_attribute("stop-color", &start_c.to_hex());
-                self.xml.end_element();
+                svg.elem("stop")
+                    .attr("offset", start_t.repr())
+                    .attr("stop-color", start_c.to_hex());
 
                 // Generate (256 / len) stops between the two stops.
                 // This is a workaround for a bug in many readers:
@@ -243,167 +248,120 @@ impl SVGRenderer<'_> {
                     let t = start_t + (end_t - start_t) * t0;
                     let c = gradient.sample(RatioOrAngle::Ratio(t));
 
-                    self.xml.start_element("stop");
-                    self.xml.write_attribute("offset", &t.repr());
-                    self.xml.write_attribute("stop-color", &c.to_hex());
-                    self.xml.end_element();
+                    svg.elem("stop")
+                        .attr("offset", t.repr())
+                        .attr("stop-color", c.to_hex());
                 }
 
-                self.xml.start_element("stop");
-                self.xml.write_attribute("offset", &end_t.repr());
-                self.xml.write_attribute("stop-color", &end_c.to_hex());
-                self.xml.end_element()
+                svg.elem("stop")
+                    .attr("offset", end_t.repr())
+                    .attr("stop-color", end_c.to_hex());
             }
-
-            self.xml.end_element();
         }
-
-        self.xml.end_element()
     }
 
     /// Write the sub-gradients that are used for conic gradients.
-    pub(super) fn write_subgradients(&mut self) {
+    pub(super) fn write_subgradients(&mut self, svg: &mut SvgElem) {
         if self.conic_subgradients.is_empty() {
             return;
         }
 
-        self.xml.start_element("defs");
-        self.xml.write_attribute("id", "subgradients");
+        let mut defs = svg.elem("defs");
+        defs.attr("id", "subgradients");
         for (id, gradient) in self.conic_subgradients.iter() {
-            let x1 = 2.0 - gradient.t0.cos() as f32 + gradient.center.x.get() as f32;
-            let y1 = gradient.t0.sin() as f32 + gradient.center.y.get() as f32;
-            let x2 = 2.0 - gradient.t1.cos() as f32 + gradient.center.x.get() as f32;
-            let y2 = gradient.t1.sin() as f32 + gradient.center.y.get() as f32;
+            let x1 = 2.0 - gradient.t0.cos() + gradient.center.x.get();
+            let y1 = gradient.t0.sin() + gradient.center.y.get();
+            let x2 = 2.0 - gradient.t1.cos() + gradient.center.x.get();
+            let y2 = gradient.t1.sin() + gradient.center.y.get();
 
-            self.xml.start_element("linearGradient");
-            self.xml.write_attribute("id", &id);
-            self.xml.write_attribute("gradientUnits", "objectBoundingBox");
-            self.xml.write_attribute("x1", &x1);
-            self.xml.write_attribute("y1", &y1);
-            self.xml.write_attribute("x2", &x2);
-            self.xml.write_attribute("y2", &y2);
+            defs.elem("linearGradient")
+                .attr("id", id)
+                .attr("gradientUnits", "objectBoundingBox")
+                .attr("x1", x1)
+                .attr("y1", y1)
+                .attr("x2", x2)
+                .attr("y2", y2)
+                .with(|svg| {
+                    svg.elem("stop")
+                        .attr("offset", "0%")
+                        .attr("stop-color", gradient.c0.to_hex());
 
-            self.xml.start_element("stop");
-            self.xml.write_attribute("offset", "0%");
-            self.xml.write_attribute("stop-color", &gradient.c0.to_hex());
-            self.xml.end_element();
-
-            self.xml.start_element("stop");
-            self.xml.write_attribute("offset", "100%");
-            self.xml.write_attribute("stop-color", &gradient.c1.to_hex());
-            self.xml.end_element();
-
-            self.xml.end_element();
+                    svg.elem("stop")
+                        .attr("offset", "100%")
+                        .attr("stop-color", gradient.c1.to_hex());
+                });
         }
-        self.xml.end_element();
     }
 
-    pub(super) fn write_gradient_refs(&mut self) {
+    pub(super) fn write_gradient_refs(&mut self, svg: &mut SvgElem) {
         if self.gradient_refs.is_empty() {
             return;
         }
 
-        self.xml.start_element("defs");
-        self.xml.write_attribute("id", "gradient-refs");
+        let mut defs = svg.elem("defs");
+        defs.attr("id", "gradient-refs");
         for (id, gradient_ref) in self.gradient_refs.iter() {
-            match gradient_ref.kind {
-                GradientKind::Linear => {
-                    self.xml.start_element("linearGradient");
-                    self.xml.write_attribute(
-                        "gradientTransform",
-                        &SvgTransform(gradient_ref.transform),
-                    );
-                }
-                GradientKind::Radial => {
-                    self.xml.start_element("radialGradient");
-                    self.xml.write_attribute(
-                        "gradientTransform",
-                        &SvgTransform(gradient_ref.transform),
-                    );
-                }
-                GradientKind::Conic => {
-                    self.xml.start_element("pattern");
-                    self.xml.write_attribute(
-                        "patternTransform",
-                        &SvgTransform(gradient_ref.transform),
-                    );
-                }
-            }
-
-            self.xml.write_attribute("id", &id);
-
-            // Writing the href attribute to the "reference" gradient.
-            self.xml
-                .write_attribute_fmt("href", format_args!("#{}", gradient_ref.id));
-
-            // Also writing the xlink:href attribute for compatibility.
-            self.xml
-                .write_attribute_fmt("xlink:href", format_args!("#{}", gradient_ref.id));
-            self.xml.end_element();
+            let (elem_name, transform_name) = match gradient_ref.kind {
+                GradientKind::Linear => ("linearGradient", "gradientTransform"),
+                GradientKind::Radial => ("radialGradient", "gradientTransform"),
+                GradientKind::Conic => ("pattern", "patternTransform"),
+            };
+            defs.elem(elem_name)
+                .attr(transform_name, SvgTransform(gradient_ref.transform))
+                .attr("id", id)
+                // Writing the href attribute to the "reference" gradient.
+                .attr("href", SvgIdRef(gradient_ref.id))
+                // Also writing the xlink:href attribute for compatibility.
+                .attr("xlink:href", SvgIdRef(gradient_ref.id));
         }
-
-        self.xml.end_element();
     }
 
     /// Write the raw tilings (without transform) to the SVG file.
-    pub(super) fn write_tilings(&mut self) {
+    pub(super) fn write_tilings(&mut self, svg: &mut SvgElem) {
         if self.tilings.is_empty() {
             return;
         }
 
-        self.xml.start_element("defs");
-        self.xml.write_attribute("id", "tilings");
+        let mut defs = svg.elem("defs");
+        defs.attr("id", "tilings");
 
         for (id, tiling) in
             self.tilings.iter().map(|(i, p)| (i, p.clone())).collect::<Vec<_>>()
         {
             let size = tiling.size() + tiling.spacing();
-            self.xml.start_element("pattern");
-            self.xml.write_attribute("id", &id);
-            self.xml.write_attribute("width", &size.x.to_pt());
-            self.xml.write_attribute("height", &size.y.to_pt());
-            self.xml.write_attribute("patternUnits", "userSpaceOnUse");
-            self.xml.write_attribute_fmt(
-                "viewBox",
-                format_args!("0 0 {:.3} {:.3}", size.x.to_pt(), size.y.to_pt()),
-            );
-
-            // Render the frame.
-            let state = State::new(size);
-            self.render_frame(&state, tiling.frame());
-
-            self.xml.end_element();
+            defs.elem("pattern")
+                .attr("id", id)
+                .attr("width", size.x.to_pt())
+                .attr("height", size.y.to_pt())
+                .attr("patternUnits", "userSpaceOnUse")
+                .attr_with("viewBox", |attr| {
+                    attr.push_nums([0.0, 0.0, size.x.to_pt(), size.y.to_pt()])
+                })
+                .with(|pattern| {
+                    // Render the frame.
+                    let state = State::new(size);
+                    self.render_frame(pattern, &state, tiling.frame());
+                });
         }
-
-        self.xml.end_element()
     }
 
     /// Writes the references to the deduplicated tilings for each usage site.
-    pub(super) fn write_tiling_refs(&mut self) {
+    pub(super) fn write_tiling_refs(&mut self, svg: &mut SvgElem) {
         if self.tiling_refs.is_empty() {
             return;
         }
 
-        self.xml.start_element("defs");
-        self.xml.write_attribute("id", "tilings-refs");
+        let mut defs = svg.elem("defs");
+        defs.attr("id", "tilings-refs");
         for (id, tiling_ref) in self.tiling_refs.iter() {
-            self.xml.start_element("pattern");
-            self.xml
-                .write_attribute("patternTransform", &SvgTransform(tiling_ref.transform));
-
-            self.xml.write_attribute("id", &id);
-
-            // Writing the href attribute to the "reference" pattern.
-            self.xml
-                .write_attribute_fmt("href", format_args!("#{}", tiling_ref.id));
-
-            // Also writing the xlink:href attribute for compatibility.
-            self.xml
-                .write_attribute_fmt("xlink:href", format_args!("#{}", tiling_ref.id));
-            self.xml.end_element();
+            defs.elem("pattern")
+                .attr("patternTransform", SvgTransform(tiling_ref.transform))
+                .attr("id", id)
+                // Writing the href attribute to the "reference" pattern.
+                .attr("href", SvgIdRef(tiling_ref.id))
+                // Also writing the xlink:href attribute for compatibility.
+                .attr("xlink:href", SvgIdRef(tiling_ref.id));
         }
-
-        self.xml.end_element();
     }
 }
 
@@ -476,6 +434,7 @@ pub trait ColorEncode {
     fn encode(&self) -> EcoString;
 }
 
+// TODO: implement FmtSvgAttr
 impl ColorEncode for Color {
     fn encode(&self) -> EcoString {
         match *self {
@@ -560,6 +519,6 @@ impl ColorEncode for Color {
 }
 
 /// Maps a coordinate in a unit size square to a coordinate in the tiling.
-pub fn correct_tiling_pos(x: f64) -> f32 {
-    (x as f32 + 0.5) / 2.0
+pub fn correct_tiling_pos(x: Ratio, y: Ratio) -> Point {
+    0.5 * Point::new(Abs::pt(x.get() + 0.5), Abs::pt(y.get() + 0.5))
 }
