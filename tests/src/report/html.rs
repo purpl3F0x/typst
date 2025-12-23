@@ -296,7 +296,7 @@ fn write_reports(body: &mut HtmlElem, reports: Vec<TestReport>) {
                             li.a().href(display!("#{}", report.name)).text(&report.name);
                         });
                     }
-                    if reports.len() == 0 {
+                    if reports.is_empty() {
                         ul.div().class("sidebar-empty").text("NONE");
                     }
                 });
