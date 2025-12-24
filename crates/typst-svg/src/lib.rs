@@ -25,7 +25,9 @@ use xmlwriter::{Options, XmlWriter};
 
 use crate::paint::{GradientRef, SVGSubGradient, TilingRef};
 use crate::text::RenderedGlyph;
-use crate::write::{SvgDisplay, SvgElem, SvgIdRef, SvgTransform, SvgUrl, SvgWrite};
+use crate::write::{
+    SvgDisplay, SvgElem, SvgIdRef, SvgTransform, SvgUrl, SvgWrite, svg_display,
+};
 
 /// Export a frame into a SVG file.
 #[typst_macros::time(name = "svg")]

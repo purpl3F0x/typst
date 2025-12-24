@@ -9,7 +9,7 @@ use typst_library::visualize::{Color, FillRule, Gradient, Paint, RatioOrAngle, T
 use xmlwriter::XmlWriter;
 
 use crate::path::SvgPathBuilder;
-use crate::write::{SvgElem, SvgIdRef, SvgTransform, SvgUrl, SvgWrite};
+use crate::write::{SvgDisplay, SvgElem, SvgIdRef, SvgTransform, SvgUrl, SvgWrite};
 use crate::{DedupId, SVGRenderer, State};
 
 /// The number of segments in a conic gradient.
@@ -434,48 +434,30 @@ pub trait ColorEncode {
     fn encode(&self) -> EcoString;
 }
 
-// TODO: implement FmtSvgAttr
-impl ColorEncode for Color {
-    fn encode(&self) -> EcoString {
+impl SvgDisplay for Color {
+    fn fmt(&self, f: &mut impl SvgWrite) {
         match *self {
             c @ Color::Rgb(_)
             | c @ Color::Luma(_)
             | c @ Color::Cmyk(_)
             | c @ Color::Hsv(_) => c.to_hex(),
             Color::LinearRgb(rgb) => {
+                f.push_str("color(srgb-linear ");
+                f.push_nums([rgb.red, rgb.green, rgb.blue].map(round::<5>));
                 if rgb.alpha != 1.0 {
-                    eco_format!(
-                        "color(srgb-linear {:.5} {:.5} {:.5} / {:.5})",
-                        rgb.red,
-                        rgb.green,
-                        rgb.blue,
-                        rgb.alpha
-                    )
-                } else {
-                    eco_format!(
-                        "color(srgb-linear {:.5} {:.5} {:.5})",
-                        rgb.red,
-                        rgb.green,
-                        rgb.blue,
-                    )
+                    f.push_str(" / ");
+                    f.push_num(round::<5>(rgb.alpha));
                 }
+                f.push_str(")");
             }
             Color::Oklab(oklab) => {
+                f.push_str("oklab(");
+                f.push_num(round::<3>(100.0 * oklab.l));
+                f.push_str("% ");
+                f.push_nums([oklab.a, oklab.b].map(round::<5>));
                 if oklab.alpha != 1.0 {
-                    eco_format!(
-                        "oklab({:.3}% {:.5} {:.5} / {:.5})",
-                        oklab.l * 100.0,
-                        oklab.a,
-                        oklab.b,
-                        oklab.alpha
-                    )
-                } else {
-                    eco_format!(
-                        "oklab({:.3}% {:.5} {:.5})",
-                        oklab.l * 100.0,
-                        oklab.a,
-                        oklab.b,
-                    )
+                    f.push_str(" / ");
+                    f.push_num(round::<5>(oklab.alpha));
                 }
             }
             Color::Oklch(oklch) => {
@@ -516,6 +498,11 @@ impl ColorEncode for Color {
             }
         }
     }
+}
+
+fn round<const DIGITS: u32>(num: f32) -> f64 {
+    let factor = 10_u32.pow(DIGITS) as f64;
+    (num as f64 * factor).round() / factor
 }
 
 /// Maps a coordinate in a unit size square to a coordinate in the tiling.
